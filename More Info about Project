@@ -1,0 +1,98 @@
+🌊 MODEL 1 — OIL SPILL DETECTION & SEGMENTATION
+Dataset
+
+Uses the Zenodo Sentinel-1 SAR dataset, divided into:
+
+Oil-spill samples — SAR images with oil-spill masks
+Negative samples — no-oil and look-alike patterns
+Test data — unseen oil, no-oil and look-alike images
+Processing
+
+Sentinel-1 SAR → VV + VH → Separate P2–P98 Normalization → 512×512 Tiles
+
+VV and VH are normalized separately to preserve their different backscatter distributions and reduce the effect of extreme values.
+
+AI Architecture
+
+ResNet-34 Encoder + U-Net Decoder
+
+Input: 512 × 512 × 2 (VV + VH)
+Pretrained ResNet-34 extracts spatial features.
+U-Net decoder reconstructs the spill boundaries using upsampling and skip connections.
+Output: 512 × 512 oil-spill probability mask
+Geospatial Output
+
+Binary Mask → GeoJSON Polygon → Spill Area + Centroid (Lat/Lon)
+
+Purpose: Accurately identify where the oil spill is and its extent.
+
+🌊 MODEL 2 — SPILL ORIGIN & DRIFT PREDICTION
+Input
+
+Receives Model 1 outputs:
+
+Oil-spill polygon
+Centroid coordinates
+Spill area
+Satellite observation time
+Environmental Data
+
+Combines:
+
+Ocean currents — Copernicus Marine
+Wind — ERA5 10-metre wind
+Waves & Stokes drift — Copernicus Marine
+
+Only the required location and time window around the detected spill is processed.
+
+Particle-Based Drift Model
+
+Creates 500–1,000 virtual particles inside the detected spill.
+
+Total movement = Ocean Current + Windage + Stokes Drift + Diffusion
+
+Uses RK4 integration with spatial and temporal interpolation to simulate particle movement.
+
+Two-Way Prediction
+Backward tracking: Estimates the probable origin and time.
+Forward tracking: Predicts the 6–72 hour future drift and spread.
+Output
+
+Origin region + origin time window + predicted drift paths + probability/uncertainty map + coastal-risk alerts
+
+Purpose: Understand where the spill came from and where it may go next.
+
+🚢 MODEL 3 — VESSEL ATTRIBUTION & SUSPECT RANKING
+Input
+
+Uses Model 2 outputs:
+
+Probable origin region
+Origin time window
+Backward drift path
+Uncertainty radius
+AIS Data
+
+Uses historical AIS data containing MMSI, timestamp, latitude, longitude, SOG, COG and vessel information.
+
+Processing
+
+AIS Data → Cleaning → MMSI Grouping → Trajectory Reconstruction → Spatial & Temporal Filtering
+
+Removes irrelevant vessels and identifies vessels that were near the probable origin during the relevant time window.
+
+Attribution Features
+
+Evaluates:
+
+Distance from origin
+Time match
+Trajectory overlap
+Speed/course changes
+AIS transmission gaps
+Vessel type
+Output
+
+Generates a transparent 0–100 suspect score and ranked vessel list with the reason for each ranking.
+
+Purpose: Identify which vessels were potentially associated with the spill, based on measurable evidence—not as proof of responsibility.
